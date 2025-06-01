@@ -1,18 +1,13 @@
 name: CI-CD for Spring Boot App
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
-      maven_step:
-        description: "Select Maven Step"
-        required: true
-        default: "package"
-        type: choice
-        options:
-          - clean package -DskipTests
-          - clean test
       environment:
-        description: "Select environment"
+        description: "Select environment to deploy"
         required: true
         default: "development"
         type: choice
@@ -21,13 +16,8 @@ on:
           - uat
 
 jobs:
-  build-and-deploy:
+  build-and-test:
     runs-on: ubuntu-latest
-
-    env:
-      IMAGE_NAME: hello-spring-boot
-      ENV_FILE: ${{ github.event.inputs.environment }}.yml
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -38,17 +28,33 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Run Maven Command
-        run: mvn ${{ github.event.inputs.maven_step }}
+      - name: Build with Maven
+        run: ./mvnw clean package
+
+      - name: Run Tests
+        run: ./mvnw test
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      IMAGE_NAME: hello-spring-boot
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      ENV_FILE: ${{ github.event.inputs.environment }}.yml
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Build Docker Image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:${{ github.sha }} .
+        run: docker build -t $DOCKERHUB_USERNAME/$IMAGE_NAME:${{ github.sha }} .
 
       - name: Push Docker Image
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+        run: docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:${{ github.sha }}
 
       - name: Deploy with kubectl
         env:
@@ -57,4 +63,4 @@ jobs:
           echo "$KUBE_CONFIG_DATA" | base64 -d > kubeconfig
           export KUBECONFIG=kubeconfig
           kubectl apply -f k8s/$ENV_FILE
-          kubectl set image deployment/hello-spring-boot-deployment hello-spring-boot=${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+          kubectl set image deployment/hello-spring-boot-deployment hello-spring-boot=$DOCKERHUB_USERNAME/$IMAGE_NAME:${{ github.sha }}
