@@ -3,6 +3,14 @@ name: CI-CD for Spring Boot App
 on:
   workflow_dispatch:
     inputs:
+      maven_step:
+        description: "Select Maven Step"
+        required: true
+        default: "package"
+        type: choice
+        options:
+          - clean package -DskipTests
+          - clean test
       environment:
         description: "Select environment"
         required: true
@@ -30,8 +38,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build with Maven
-        run: mvn clean package -DskipTests
+      - name: Run Maven Command
+        run: mvn ${{ github.event.inputs.maven_step }}
 
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
