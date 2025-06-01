@@ -8,7 +8,7 @@ on:
     inputs:
       environment:
         description: "Select environment to deploy"
-        required: false
+        required: true
         default: "development"
         type: choice
         options:
@@ -29,10 +29,10 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Maven
-        run: ./mvnw clean package
+        run: mvn clean package
 
       - name: Run Tests
-        run: ./mvnw test
+        run: mvn test
 
   deploy:
     needs: build-and-test
