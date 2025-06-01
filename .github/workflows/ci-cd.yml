@@ -8,7 +8,7 @@ on:
     inputs:
       environment:
         description: "Select environment to deploy"
-        required: true
+        required: false
         default: "development"
         type: choice
         options:
